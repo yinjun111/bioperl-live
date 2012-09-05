@@ -19,8 +19,8 @@ Bio::Seq::SimulatedRead - Read with sequencing errors taken from a reference seq
     my $read = Bio::Seq::SimulatedRead->new(
        -reference => $genome  , # sequence to generate the read from
        -id        => 'read001', # read ID
-       -start     => 3        , # start of the read on the genome
-       -end       => 12       , # end of the read on the genome
+       -start     => 3        , # start of the read on the genome forward strand
+       -end       => 12       , # end of the read on the genome forward strand
        -strand    => 1        , # genome strand that the read is on
     );
 
@@ -52,9 +52,13 @@ read on the reference sequence, and the sequencing errors to generate.
 
 The sequence of the read is automatically calculated based on this information.
 By default, the description of the reads contain tracking information and will
-look like this:
+look like this (Bioperl-style):
 
-  reference=human_chr2 position=3-12 strand=+1 mid=ACGT errors=1%G,4-,8+AAA description="The human genome"
+  reference=human_chr2 start=3 end=12 strand=-1 mid=ACGT errors=1%G,4-,8+AAA description="The human genome"
+
+or Genbank-style:
+
+  reference=human_chr2 position=complement(3..12) mid=ACGT errors=1%G,4-,8+AAA description="The human genome"
 
 Creating a simulated read follows these steps:
   1/ Define the read start(), end(), strand() and qual_levels() if you want
@@ -90,20 +94,23 @@ use base qw( Bio::Seq::Quality Bio::LocatableSeq );
 
  Title    : new
  Function : Create a new simulated read object
- Usage    : my $read = Bio::Seq::SimulatedRead->new( -id        => 'read001',
-                                           -reference => $seq_obj ,
-                                           -errors    => $errors  ,
-                                           -start     => 10       ,
-                                           -end       => 135      ,
-                                           -strand    => 1          );
- Arguments: -reference => Bio::SeqI, Bio::PrimarySeqI object representing the
-                          reference sequence to take the read from. See
-                          reference().
-            -errors    => Hashref representing the position of errors in the read
-                          See errors().
-            -mid       => String of a MID to prepend to the read. See mid().
-            -track     => Track where the read came from in the read description?
-                          See track().
+ Usage    : my $read = Bio::Seq::SimulatedRead->new(
+               -id        => 'read001',
+               -reference => $seq_obj ,
+               -errors    => $errors  ,
+               -start     => 10       ,
+               -end       => 135      ,
+               -strand    => 1        ,
+            );
+ Arguments: -reference   => Bio::SeqI, Bio::PrimarySeqI object representing the
+                            reference sequence to take the read from. See
+                            reference().
+            -errors      => Hashref representing the position of errors in the read
+                            See errors().
+            -mid         => String of a MID to prepend to the read. See mid().
+            -track       => Track where the read came from in the read description?
+                            See track().
+            -coord_style => Define what coordinate system to use. See coord_style().
             All other methods from Bio::LocatableSeq are available.
  Returns  : new Bio::Seq::SimulatedRead object
 
@@ -112,8 +119,10 @@ use base qw( Bio::Seq::Quality Bio::LocatableSeq );
 sub new {
    my ($class, @args) = @_;
    my $self = $class->SUPER::new(@args);
-   my ($qual_levels, $reference, $mid, $errors, $track) =
-      $self->_rearrange([qw(QUAL_LEVELS REFERENCE MID ERRORS TRACK )], @args);
+   my ($qual_levels, $reference, $mid, $errors, $track, $coord_style) =
+      $self->_rearrange([qw(QUAL_LEVELS REFERENCE MID ERRORS TRACK COORD_STYLE)], @args);
+   $coord_style = defined $coord_style ? $coord_style : 'bioperl';
+   $self->coord_style($coord_style);
    $track = defined $track ? $track : 1;
    $self->track($track);
    $qual_levels = defined $qual_levels ? $qual_levels : [];
@@ -236,17 +245,27 @@ sub _create_desc {
    if (defined $ref_id) {
       $desc_str .= 'reference='.$ref_id.' ';
    }
-   # Position of read on reference sequence: start and end
-   $desc_str .= 'position='.$self->start.'-'.$self->end.' ';
-   # Strand of the reference sequence that the read is on
+   # Position of read on reference sequence: start, end and strand
    my $strand = $self->strand;
-   if (defined $strand) {
-      $strand = '+1' if $strand == 1;
-      $desc_str .= 'strand='.$strand.' ';
+   if ($self->coord_style eq 'bioperl') {
+     $desc_str .= 'start='.$self->start.' end='.$self->end.' ';
+     if (defined $strand) {
+        # Strand of the reference sequence that the read is on
+        $strand = '+1' if $strand == 1;
+        $desc_str .= 'strand='.$strand.' ';
+     }
+   } else {
+     if ( (defined $strand) && ($strand == -1) ) {
+       # Reverse complemented
+       $desc_str .= 'position=complement('.$self->start.'..'.$self->end.') ';
+     } else {
+       # Regular (forward) orientation
+       $desc_str .= 'position='.$self->start.'..'.$self->end.' ';
+     }
    }
    # Description of the original sequence
    my $ref_desc = $self->reference->desc;
-   if (defined $self->reference->desc) {
+   if ( (defined $self->reference->desc) && ($self->reference->desc !~ m/^\s*$/) ) {
       $ref_desc =~ s/"/\\"/g; # escape double-quotes to \"
       $desc_str .= 'description="'.$ref_desc.'" ';
    }
@@ -335,7 +354,7 @@ sub _update_desc_mid {
       # Sequencing errors introduced in the read
       my $mid_str = "mid=".$mid;
       my $desc_str = $self->desc;
-      $desc_str =~ s/(strand=\S+)( mid=\S+)?/$1 $mid_str/g;
+      $desc_str =~ s/((position|strand)=\S+)( mid=\S+)?/$1 $mid_str/g;
       $self->desc( $desc_str );
    }
    return 1;
@@ -350,13 +369,19 @@ sub _update_desc_mid {
  Usage    : my $errors = $read->errors();
  Arguments: Reference to a hash of the position and nature of sequencing errors.
             The positions are 1-based relative to the error-free MID-containing
-            read (not relative to the reference sequence).
-            Example:
+            read (not relative to the reference sequence). For example:
                $errors->{34}->{'%'} = 'T'  ; # substitution of residue 34 by a T
                $errors->{23}->{'+'} = 'GG' ; # insertion of GG after residue 23
                $errors->{45}->{'-'} = undef; # deletion of residue 45
-            Substitutions are for a single residue, but additions can be of
-            several residues.
+            Substitutions and deletions are for a single residue, but additions
+            can be additions of several residues.
+            An alternative way to specify errors is by using array references
+            instead of scalar for the hash values. This allows to specify
+            redundant mutations. For example, the case presented above would
+            result in the same read sequence as the example below:
+               $errors->{34}->{'%'} = ['C', 'T']    ; # substitution by a C and then a T
+               $errors->{23}->{'+'} = ['G', 'G']    ; # insertion of G and then a G
+               $errors->{45}->{'-'} = [undef, undef]; # deletion of residue, and again
  Returns  : Reference to a hash of the position and nature of sequencing errors.
 
 =cut
@@ -372,6 +397,8 @@ sub errors {
       if (not defined $self->reference) {
          $self->throw("Cannot add errors because the reference sequence was not set\n");
       }
+      # Convert scalar error specs to arrayref specs
+      $errors = $self->_scalar_to_arrayref($errors);
       # Check validity of error specifications
       $errors = $self->_validate_error_specs($errors);
       # Set the error specifications
@@ -386,8 +413,25 @@ sub errors {
       $self->_update_seq_errors;
       $self->_update_qual_errors if scalar @{$self->qual_levels};
       $self->_update_desc_errors if $self->track;
+
    }
    return $self->{errors};
+}
+
+
+sub _scalar_to_arrayref {
+   # Replace the scalar values in the error specs by more versatile arrayrefs
+   my ($self, $errors) = @_;
+   while ( my ($pos, $ops) = each %$errors ) {
+      while ( my ($op, $res) = each %$ops ) {
+         if (ref $res eq '') {
+            my $arr = [ split //, ($res || '') ];
+            $arr = [undef] if scalar @$arr == 0;
+            $$errors{$pos}{$op} = $arr;
+         }
+      }
+   }
+   return $errors;
 }
 
 
@@ -428,12 +472,20 @@ sub _validate_error_specs {
                " $pos\n");
             delete $ops->{$op};
          } else {
-            # Value has to be 1 character long, no more
-            if ( (defined $res) && ($op eq '%') && (length $res > 1) ) {
-               $self->warn("Can only substitute a single residue at a time but".
-                  " got ".length($res)." at position $pos, operation $op. ".
-                  "Ignoring residues past the first one.\n");
-               $ops->{$op} = substr $res, 0, 1;
+            # Substitutions: have to have at least one residue to substitute
+            if ( ($op eq '%') && (scalar @$res < 1) ) {
+               $self->warn("At least one residue must be provided for substitutions,".
+                  "but got ".scalar(@$res)." at position $pos.\n");
+            }
+            # Additions: have to have at least one residue to add
+            if ( ($op eq '+') && (scalar @$res < 1) ) {
+               $self->warn("At least one residue must be provided for additions,".
+                  "but got ".scalar(@$res)." at position $pos.\n");
+            }
+            # Deletions
+            if ( ($op eq '-') && (scalar @$res < 1) ) {
+               $self->warn("At least one 'undef' must be provided for deletions,".
+                  "but got ".scalar(@$res)." at position $pos.\n");
             }
          }
       }
@@ -455,18 +507,19 @@ sub _update_seq_errors {
          # Process sequencing errors at that position
          for my $type ( '%', '-', '+' ) {
             next if not exists $$errors{$pos}{$type};
-            my $val = $$errors{$pos}{$type};
+            my $arr = $$errors{$pos}{$type};
             if ($type eq '%') {
-               # Substitution at residue position
-               substr $seq_str, $pos - 1 + $off, 1, $val;
+               # Substitution at residue position. If there are multiple
+               # substitutions to do, directly skip to the last one.
+               substr $seq_str, $pos - 1 + $off, 1, $$arr[-1];
             } elsif ($type eq '-') {
                # Deletion at residue position
                substr $seq_str, $pos - 1 + $off, 1, '';
                $off--;
             } elsif ($type eq '+') {
                # Insertion after residue position
-               substr $seq_str, $pos + $off, 0, $val;
-               $off += length $val;
+               substr $seq_str, $pos + $off, 0, join('', @$arr);
+               $off += scalar @$arr;
             }
          }
       }
@@ -490,7 +543,7 @@ sub _update_qual_errors {
          # Process sequencing errors at that position
          for my $type ( '%', '-', '+' ) {
             next if not exists $$errors{$pos}{$type};
-            my $val = $$errors{$pos}{$type};
+            my $arr = $$errors{$pos}{$type};
             if ($type eq '%') {
                # Substitution at residue position
                splice @$qual, $pos - 1 + $off, 1, $bad_qual;
@@ -500,8 +553,8 @@ sub _update_qual_errors {
                $off--;
             } elsif ($type eq '+') {
                # Insertion after residue position
-               splice @$qual, $pos + $off, 0, ($bad_qual) x length($val);
-               $off += length $val;
+               splice @$qual, $pos + $off, 0, ($bad_qual) x scalar(@$arr);
+               $off += scalar @$arr;
             }
          }
       }
@@ -522,13 +575,15 @@ sub _update_desc_errors {
          # Process sequencing errors at that position
          for my $type ( '%', '-', '+' ) {
             next if not exists $$errors{$pos}{$type};
-            my $val = $$errors{$pos}{$type} || '';
-            $err_str .= $pos . $type . $val . ',';
+            for my $val ( @{$$errors{$pos}{$type}} ) {
+               $val = '' if not defined $val;
+               $err_str .= $pos . $type . $val . ',';
+            }
          }
       }
       $err_str =~ s/,$//;
       my $desc_str = $self->desc;
-      $desc_str =~ s/(strand=\S+( mid=\S+)?)( errors=\S+)?/$1 $err_str/g;
+      $desc_str =~ s/((position|strand)=\S+( mid=\S+)?)( errors=\S+)?/$1 $err_str/g;
       $self->desc( $desc_str );
    }
    return 1;
@@ -552,7 +607,7 @@ sub track {
       if (defined $self->reference) {
          if ($track == 1) {
             $self->_create_desc;
-            $self->_update_desc_mid;
+            $self->_update_desc_mid($self->mid);
             $self->_update_desc_errors;
          } else {
             $self->desc(undef);
@@ -561,6 +616,37 @@ sub track {
       $self->{track} = $track;
    }
    return $self->{track};
+}
+
+
+=head2 coord_style
+
+ Title    : coord_style
+ Function : When tracking is on, define which 1-based coordinate system to use
+            in the read description:
+              * 'bioperl' uses the start, end and strand keywords (default),
+                similarly to the GFF3 format. Example:
+                  start=1 end=10 strand=+1
+                  start=1 end=10 strand=-1
+              * 'genbank' does only provide the position keyword. Example:
+                  position=1..10
+                  position=complement(1..10)
+ Usage    : my $coord_style = $read->track();
+ Arguments: 'bioperl' or 'genbank'
+ Returns  : 'bioperl' or 'genbank'
+
+=cut
+
+sub coord_style {
+   my ($self, $coord_style) = @_;
+   my %styles = ( 'bioperl' => undef, 'genbank' => undef );
+   if (defined $coord_style) {
+      if (not exists $styles{$coord_style}) {
+         die "Error: Invalid coordinate style '$coord_style'\n";
+      }
+      $self->{coord_style} = $coord_style;
+   }
+   return $self->{coord_style};
 }
 
 

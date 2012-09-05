@@ -397,16 +397,20 @@ sub remove_seq {
 sub remove_LocatableSeq {
     my $self = shift;
     my $seq = shift;
-    my ($name,$id,$start,$end);
+    my ($name,$id);
 
     $self->throw("Need Bio::Locatable seq argument ")
 	unless ref $seq && $seq->isa( 'Bio::LocatableSeq');
 
     $id = $seq->id();
+<<<<<<< HEAD
     $start = $seq->start();
     $end  = $seq->end();
     $name = sprintf("%s/%d-%d",$id,$start,$end);
     
+=======
+    $name = $seq->get_nse;
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
 
     if( !exists $self->{'_seq'}->{$name} ) {
 	$self->throw("Sequence $name does not exist in the alignment to remove!");
@@ -709,6 +713,7 @@ sub _convert_leading_ending_gaps {
 sub sort_alphabetically {
     my $self = shift;
     my ($seq,$nse,@arr,%hash,$count);
+<<<<<<< HEAD
 
     foreach $seq ( $self->next_Seq() ) {
 	$nse = $seq->get_nse;
@@ -763,8 +768,17 @@ sub sort_by_list {
     foreach (@sorted) { $aln->add_Seq($_) }
     return $aln;
 }
+=======
 
+    foreach $seq ( $self->next_Seq() ) {
+	$nse = $seq->get_nse;
+	$hash{$nse} = $seq;
+    }
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
 
+    $count = 0;
+
+<<<<<<< HEAD
 =head2 sort_by_pairwise_identity
 
  Title     : sort_by_pairwise_identity()
@@ -775,9 +789,19 @@ sub sort_by_list {
  Argument  : Optional, the position or id of reference sequences to be compared 
              with. Default is the first sequence
              See also set_new_reference
+=======
+    %{$self->{'_order'}} = (); # reset the hash;
 
-=cut
+    foreach $nse ( sort _alpha_startend keys %hash) {
+	$self->{'_order'}->{$count} = $nse;
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
 
+	$count++;
+    }
+    1;
+}
+
+<<<<<<< HEAD
 sub sort_by_pairwise_identity {
 	my ($self,$seqid) = @_;
 	my ($seq,$nse,@arr,%hash,$count);
@@ -801,6 +825,323 @@ sub sort_by_pairwise_identity {
 	1;	
 }
 
+=head2 sort_by_length
+
+ Title     : sort_by_length()
+ Usage     : $ali->sort_by_length()
+ Function  : Changes the order of the alignment by the ungapped length of 
+              the sequences
+ Returns   : 1
+ Argument  : None
+=======
+=head2 sort_by_list
+
+ Title     : sort_by_list
+ Usage     : $aln_ordered=$aln->sort_by_list($list_file)
+ Function  : Arbitrarily order sequences in an alignment
+ Returns   : A new Bio::SimpleAlign object
+ Argument  : a file listing sequence names in intended order 
+             (one name per line)
+
+=cut
+
+sub sort_by_list {
+    my ($self, $list) = @_;
+    my (@seq, @ids, %order);
+
+    foreach my $seq ( $self->next_Seq() ) {
+        push @seq, $seq;
+        push @ids, $seq->display_id;
+    }
+
+    my $ct=1;
+    open(my $listfh, '<', $list) || $self->throw("can't open file for reading: $list");
+    while (<$listfh>) {
+      chomp;
+      my $name=$_;
+      $self->throw("Not found in alignment: $name") unless &_in_aln($name, \@ids);
+      $order{$name}=$ct++;
+    }
+    close($listfh);
+    
+    # use the map-sort-map idiom:
+    my @sorted= map { $_->[1] } sort { $a->[0] <=> $b->[0] } map { [$order{$_->id()}, $_] } @seq;
+    my $aln = $self->new;
+    foreach (@sorted) { $aln->add_Seq($_) }
+    return $aln;
+}
+
+
+=head2 sort_by_pairwise_identity
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
+
+ Title     : sort_by_pairwise_identity()
+ Usage     : $ali->sort_by_pairwise_identity(2)
+ Function  : Changes the order of the alignment by the pairwise percentage 
+             identity of the reference sequence
+ Returns   : 1
+ Argument  : Optional, the position or id of reference sequences to be compared 
+             with. Default is the first sequence
+             See also set_new_reference
+
+<<<<<<< HEAD
+sub sort_by_length {
+	my $self = shift;
+	my %seq2length;
+	
+	foreach my $order (keys %{$self->{'_order'}}) {
+		my $nse=$self->{'_order'}->{$order};
+		my $seq=$self->{'_seq'}->{$nse};
+		$seq2length{$seq->get_nse}=$seq->_ungapped_len;
+	}
+	
+	%{$self->{'_order'}} = (); # reset the hash;
+	
+	my $count=0;
+	foreach my $nse (sort {$seq2length{$a}<=>$seq2length{$b}} keys %seq2length) {
+		$self->{'_order'}->{$count} = $nse;
+		$count++;
+	}
+	
+	1;
+}
+
+=head2 sort_by_start
+
+ Title     : sort_by_start
+ Usage     : $ali->sort_by_start
+ Function  : Changes the order of the alignment to the start position of 
+             each subalignment    
+ Returns   : 1
+ Argument  : None
+
+=cut
+
+sub sort_by_start {
+    my $self = shift;
+    my ($seq,$nse,@arr,%hash,$count);
+    foreach $seq ( $self->next_Seq() ) {
+        $nse = $seq->get_nse;
+        $hash{$nse} = $seq;
+    }
+    $count = 0;
+    %{$self->{'_order'}} = (); # reset the hash;
+    foreach $nse ( sort _startend keys %hash) {
+        $self->{'_order'}->{$count} = $nse;
+        $count++;
+    }
+    1;
+}
+
+sub _startend
+{
+    my ($aname,$arange) = split (/[\/]/,$a);
+    my ($bname,$brange) = split (/[\/]/,$b);
+    my ($astart,$aend) = split(/\-/,$arange);
+    my ($bstart,$bend) = split(/\-/,$brange);
+    return $astart <=> $bstart;
+}
+=head2 set_new_reference
+
+ Title     : set_new_reference
+ Usage     : $aln->set_new_reference(3 or 'B31'):  Select the 3rd sequence, 
+             or the sequence whoes name is "B31" (full, exact, and 
+             case-sensitive), as the reference (1st) sequence
+ Function  : Change/Set a new reference (i.e., the first) sequence
+ Returns   : a new Bio::SimpleAlign object.
+             Throws an exception if designated sequence not found
+ Argument  : a positive integer of sequence order, or a sequence name
+             in the original alignment
+
+=cut
+
+sub set_new_reference {
+    my ($self, $seqid) = @_;
+    my $aln = $self->new;
+    my (@seq, @ids, @new_seq);
+    my $is_num=0;
+    foreach my $seq ( $self->next_Seq() ) {
+	push @seq, $seq;
+	push @ids, $seq->display_id;
+    }
+
+    if ($seqid =~ /^\d+$/) { # argument is seq position
+	$is_num=1;
+	$self->throw("The new reference sequence number has to be a positive integer >1 and <= num_sequences ") if ($seqid <= 1 || $seqid > $self->num_sequences);
+    } else { # argument is a seq name
+	$self->throw("The new reference sequence not in alignment ") unless &_in_aln($seqid, \@ids);
+    }
+
+    for (my $i=0; $i<=$#seq; $i++) {
+	my $pos=$i+1;
+        if ( ($is_num && $pos == $seqid) || ($seqid eq $seq[$i]->display_id) ) {
+	    unshift @new_seq, $seq[$i];
+	} else {
+	    push @new_seq, $seq[$i];
+	}
+    }
+    foreach (@new_seq) { $aln->add_Seq($_);  }
+    return $aln;
+}
+
+sub _in_aln {  # check if input name exists in the alignment
+    my ($str, $ref) = @_;
+    foreach (@$ref) {
+	return 1 if $str eq $_;
+    }
+    return 0;
+}
+
+
+
+=head1 Alignment selection methods
+
+These methods are used to select the sequences or horizontal/vertical 
+subsets of the current MSA.
+
+=head2 next_Seq
+
+ Title     : next_Seq
+ Usage     : foreach $seq ( $aln->next_Seq() )
+ Function  : Gets a Seq object from the alignment
+ Returns   : Seq object
+ Argument  :
+
+=cut
+
+sub eachSeq {
+    my $self = shift;
+    $self->deprecated(-warn_version => 1.0080, -throw_version => 1.0090, -message =>"eachSeq - deprecated method. Use next_Seq() instead.");
+    $self->next_Seq();
+}
+
+sub each_seq {
+    my $self = shift;
+    $self->deprecated(-warn_version => 1.0080, -throw_version => 1.0090, -message =>"each_seq - deprecated method. Use next_Seq() instead.");
+    $self->next_Seq();
+}
+
+sub next_Seq {
+	my $self = shift;
+	my (@arr,$order);
+
+	foreach $order ( sort { $a <=> $b } keys %{$self->{'_order'}} ) {
+		if( exists $self->{'_seq'}->{$self->{'_order'}->{$order}} ) {
+			push(@arr,$self->{'_seq'}->{$self->{'_order'}->{$order}});
+		}
+	}
+	return @arr;
+}
+
+
+=head2 next_alphabetically
+
+ Title     : next_alphabetically
+ Usage     : foreach $seq ( $aln->next_alphabetically() )
+ Function  : Returns a sequence object, but the objects are returned
+             in alphabetically sorted order.
+             Does not change the order of the alignment.
+ Returns   : Seq object
+ Argument  : None
+
+=cut
+
+sub each_alphabetically {
+    my $self = shift;
+    $self->deprecated(-warn_version => 1.0080, -throw_version => 1.0090, -message =>"each_alphabetically - deprecated method. Use next_alphabetically() instead.");
+    $self->next_Seq();	
+}
+
+
+sub next_alphabetically {
+	my $self = shift;
+	my ($seq,$nse,@arr,%hash,$count);
+
+	foreach $seq ( $self->next_Seq() ) {
+		$nse = $seq->get_nse;
+		$hash{$nse} = $seq;
+	}
+
+	foreach $nse ( sort _alpha_startend keys %hash) {
+		push(@arr,$hash{$nse});
+	}
+	return @arr;
+}
+
+sub _alpha_startend {
+    my ($aname,$astart,$bname,$bstart);
+    ($aname,$astart) = split (/-/,$a);
+    ($bname,$bstart) = split (/-/,$b);
+
+    if( $aname eq $bname ) {
+	return $astart <=> $bstart;
+    }
+    else {
+	return $aname cmp $bname;
+    }
+}
+
+=head2 next_Seq_with_id
+
+ Title     : next_Seq_with_id
+ Usage     : foreach $seq ( $aln->next_Seq_with_id() )
+ Function  : Gets a Seq objects from the alignment, the contents
+             being those sequences with the given name (there may be
+             more than one)
+ Returns   : Seq object
+ Argument  : a seq name
+
+=cut
+
+sub eachSeqWithId {
+    my $self = shift;
+    $self->deprecated(-warn_version => 1.0080, -throw_version => 1.0090, -message =>"eachSeqWithId - deprecated method. Use next_Seq_with_id() instead.");
+    $self->next_Seq_with_id(@_);
+}
+
+sub each_seq_with_id {
+    my $self = shift;
+    $self->deprecated(-warn_version => 1.0080, -throw_version => 1.0090, -message =>"each_seq_with_id - deprecated method. Use next_Seq_with_id() instead.");
+    $self->next_Seq_with_id(@_);
+}
+
+sub next_Seq_with_id {
+    my $self = shift;
+    my $id = shift;
+
+    $self->throw("Method next_Seq_with_id needs a sequence name argument")
+	unless defined $id;
+=======
+=cut
+
+sub sort_by_pairwise_identity {
+	my ($self,$seqid) = @_;
+	my ($seq,$nse,@arr,%hash,$count);
+	$seqid=defined($seqid)?$seqid:1;
+	my @pairwise_iden=$self->pairwise_percentage_identity($seqid);
+	
+	my $seqcount = 0;
+	foreach $seq ( $self->next_Seq() ) {
+		$nse = $seq->get_nse;
+		$hash{$nse} = $pairwise_iden[$seqcount++];
+	}
+
+	$count=0;
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
+
+	%{$self->{'_order'}} = (); # reset the hash;
+
+	foreach $nse ( sort {$hash{$b}<=>$hash{$a}} keys %hash) {
+		$self->{'_order'}->{$count} = $nse;
+		$count++;
+	}
+	1;	
+}
+
+<<<<<<< HEAD
+=head2 get_Seq_by_pos
+
+=======
 =head2 sort_by_length
 
  Title     : sort_by_length()
@@ -1049,11 +1390,12 @@ sub next_Seq_with_id {
 
 =head2 get_Seq_by_pos
 
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
  Title     : get_Seq_by_pos
  Usage     : $seq = $aln->get_Seq_by_pos(3) # third sequence from the alignment
  Function  : Gets a sequence based on its position in the alignment.
              Numbering starts from 1.  Sequence positions larger than
-             num_sequences() will thow an error.
+             num_sequences() will throw an error.
  Returns   : a Bio::LocatableSeq object
  Args      : positive integer for the sequence position
 
@@ -1194,10 +1536,59 @@ sub select_noncont {
 
 =cut
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
 sub slice {
 	my $self = shift;
 	$self->deprecated(-warn_version => 1.0080, -throw_version => 1.0090, -message =>"slice - deprecated method. Use select_columns() instead.");
 	$self->select_columns([$_[0]..$_[1]],0,defined($_[2])?$_[2]:0);	
+<<<<<<< HEAD
+=======
+=======
+   return $seq;
+}
+
+
+=head1 Create new alignments
+
+The result of these methods are horizontal or vertical subsets of the
+current MSA.
+
+=head2 select
+
+ Title     : select
+ Usage     : $aln2 = $aln->select(1, 3) # three first sequences
+ Function  : Creates a new alignment from a continuous subset of
+             sequences.  Numbering starts from 1.  Sequence positions
+             larger than num_sequences() will throw an error.
+ Returns   : a Bio::SimpleAlign object
+ Args      : positive integer for the first sequence
+             positive integer for the last sequence to include (optional)
+
+=cut
+
+sub select {
+    my $self = shift;
+    my ($start, $end) = @_;
+
+    $self->throw("Select start has to be a positive integer, not [$start]")
+	unless $start =~ /^\d+$/ and $start > 0;
+    $self->throw("Select end has to be a positive integer, not [$end]")
+	unless $end  =~ /^\d+$/ and $end > 0;
+    $self->throw("Select $start [$start] has to be smaller than or equal to end [$end]")
+	unless $start <= $end;
+
+    my $aln = $self->new;
+    foreach my $pos ($start .. $end) {
+	$aln->add_seq($self->get_seq_by_pos($pos));
+    }
+    $aln->id($self->id);
+    # fix for meta, sf, ann    
+    return $aln;
+>>>>>>> upstream/master
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
 }
 
 
@@ -1209,7 +1600,59 @@ sub select_columns {
 		$sel=$self->_select_columns_by_type($sel);
 	}
 	
+<<<<<<< HEAD
 	@{$sel}=sort {$a<=$b} @{$sel};
+=======
+<<<<<<< HEAD
+	@{$sel}=sort {$a<=$b} @{$sel};
+=======
+	my $aln = $self->new;
+	foreach my $p (@pos) {
+		$aln->add_seq($self->get_seq_by_pos($p));
+	}
+	$aln->id($self->id);
+    # fix for meta, sf, ann    
+	return $aln;
+}
+
+=head2 select_noncont_by_name
+
+ Title     : select_noncont_by_name
+ Usage     : my $aln2 = $aln->select_noncont_by_name('A123', 'B456');
+ Function  : Creates a new alignment from a subset of sequences which are
+             selected by name (sequence ID).
+ Returns   : a Bio::SimpleAlign object
+ Args      : array of names (i.e., identifiers) for the sequences.
+
+=cut
+
+sub select_noncont_by_name {
+    my ($self, @names) = @_;
+    
+    my $aln = $self->new;
+    foreach my $name (@names) {
+        $aln->add_seq($self->get_seq_by_id($name));
+    }
+    $aln->id($self->id);
+
+    return $aln;
+}
+
+=head2 slice
+
+ Title     : slice
+ Usage     : $aln2 = $aln->slice(20,30)
+ Function  : Creates a slice from the alignment inclusive of start and
+             end columns, and the first column in the alignment is denoted 1.
+             Sequences with no residues in the slice are excluded from the
+             new alignment and a warning is printed. Slice beyond the length of
+             the sequence does not do padding.
+ Returns   : A Bio::SimpleAlign object
+ Args      : Positive integer for start column, positive integer for end column,
+             optional boolean which if true will keep gap-only columns in the newly
+             created slice. Example:
+>>>>>>> upstream/master
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
 
 	#warnings
 	$self->throw("select_columns start has to be a positive integer, not [".$sel->[0]."]")
@@ -1513,7 +1956,23 @@ sub remove_gaps {
     # Do the matching to get the segments to remove
     my $removed_cols;
     while ($gap_line =~ m/[$del_char]/g) {
+<<<<<<< HEAD
         push @{$removed_cols}, pos($gap_line);
+=======
+<<<<<<< HEAD
+        push @{$removed_cols}, pos($gap_line);
+=======
+        my $start = pos($gap_line)-1;
+        $gap_line =~ m/\G[$del_char]+/gc;
+        my $end = pos($gap_line)-1;
+
+        #have to offset the start and end for subsequent removes
+        $start-=$length;
+        $end  -=$length;
+        $length += ($end-$start+1);
+        push @remove, [$start,$end];
+>>>>>>> upstream/master
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
     }
     #remove the segments
     $aln = $#$removed_cols >= 0 ? $self->select_columns($removed_cols,1) : $self;
@@ -1566,10 +2025,17 @@ sub mask_columns {
 	my @newcoords;
 	if($toggle) {
 		@newcoords=@{_cont_coords(_toggle_selection($sel,$self->length))};
+<<<<<<< HEAD
 	}
 	else {
 		@newcoords=@{_cont_coords($sel)};
 	}
+=======
+	}
+	else {
+		@newcoords=@{_cont_coords($sel)};
+	}
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
 	
 	my $aln = $self->new;
 	$aln->id($self->id);
@@ -1627,6 +2093,32 @@ sub mask_columns {
              instance
 
 =cut
+<<<<<<< HEAD
+
+sub seq_with_features{
+   my ($self,%arg) = @_;
+
+   #first do the preparatory splice
+   $self->throw("must provide a -pos argument") unless $arg{-pos};
+   $self->remove_gaps(-reference=>$arg{-pos});
+
+   my $consensus_string = $self->consensus_string($arg{-consensus});
+   $consensus_string = $arg{-mask}->($consensus_string)
+	 if defined($arg{-mask});
+
+   my(@bs,@es);
+
+   push @bs, 1 if $consensus_string =~ /^[^?]/;
+
+   while($consensus_string =~ /\?[^?]/g){
+	 push @bs, pos($consensus_string);
+   }
+   while($consensus_string =~ /[^?]\?/g){
+	 push @es, pos($consensus_string);
+   }
+
+   push @es, CORE::length($consensus_string) if $consensus_string =~ /[^?]$/;
+=======
 
 sub seq_with_features{
    my ($self,%arg) = @_;
@@ -1687,14 +2179,13 @@ alignment.
  Title     : map_chars
  Usage     : $ali->map_chars('\.','-')
  Function  : Does a s/$arg1/$arg2/ on the sequences. Useful for gap
-             characters
+             characters.
 
-             Notice that the from (arg1) is interpretted as a regex,
-             so be careful about quoting meta characters (eg
-             $ali->map_chars('.','-') wont do what you want)
+             Note that the first argument is interpreted as a regexp
+             so be careful and escape any wild card characters (e.g.
+             do $ali->map_chars('\.','-') to replace periods with dashes.
  Returns   :
- Argument  : 'from' rexexp
-             'to' string
+ Argument  : A regexp and a string
 
 =cut
 
@@ -1702,15 +2193,22 @@ sub map_chars {
     my $self = shift;
     my $from = shift;
     my $to   = shift;
-    my ($seq,$temp);
+    my ( $seq, $temp );
 
-    $self->throw("Need exactly two arguments")
-	unless defined $from and defined $to;
+    $self->throw("Need two arguments: a regexp and a string")
+      unless defined $from and defined $to;
 
+<<<<<<< HEAD
     foreach $seq ( $self->next_Seq() ) {
 	$temp = $seq->seq();
 	$temp =~ s/$from/$to/g;
 	$seq->seq($temp);
+=======
+    foreach $seq ( $self->each_seq() ) {
+        $temp = $seq->seq();
+        $temp =~ s/$from/$to/g;
+        $seq->seq($temp);
+>>>>>>> upstream/master
     }
     return 1;
 }
@@ -1775,20 +2273,812 @@ sub lowercase {
 
 =cut
 
+<<<<<<< HEAD
 sub togglecase {
+    my $self = shift;
+    my $seq;
+    my $temp;
+=======
+sub gap_line {
+    my ($self,$gapchar) = @_;
+    $gapchar = $gapchar || $self->gap_char;
+    my %gap_hsh; # column gaps vector
+    foreach my $seq ( $self->each_seq ) {
+		my $i = 0;
+    	map {$gap_hsh{$_->[0]} = undef} grep {$_->[1] =~ m/[$gapchar]/}
+		  map {[$i++, $_]} split(//, uc ($seq->seq));
+    }
+    my $gap_line;
+    foreach my $pos ( 0..$self->length-1 ) {
+	  $gap_line .= (exists $gap_hsh{$pos}) ? $self->gap_char:'.';
+    }
+    return $gap_line;
+}
+
+=head2 all_gap_line
+
+ Title    : all_gap_line()
+ Usage    : $line = $align->all_gap_line()
+ Function : Generates a gap line - much like consensus string
+            except that a line where '-' represents all-gap column
+ Args     : (optional) gap line characters ('-' by default)
+ Returns  : string
+>>>>>>> upstream/master
+
+    foreach $seq ( $self->next_Seq() ) {
+      $temp = $seq->seq();
+      $temp =~ tr/[A-Za-z]/[a-zA-Z]/;
+
+<<<<<<< HEAD
+      $seq->seq($temp);
+=======
+sub all_gap_line {
+    my ($self,$gapchar) = @_;
+    $gapchar = $gapchar || $self->gap_char;
+    my %gap_hsh;		# column gaps counter hash
+    my @seqs = $self->each_seq;
+    foreach my $seq ( @seqs ) {
+	my $i = 0;
+    	map {$gap_hsh{$_->[0]}++} grep {$_->[1] =~ m/[$gapchar]/}
+	map {[$i++, $_]} split(//, uc ($seq->seq));
+    }
+    my $gap_line;
+    foreach my $pos ( 0..$self->length-1 ) {
+	if (exists $gap_hsh{$pos} && $gap_hsh{$pos} == scalar @seqs) {
+            # gaps column
+	    $gap_line .= $self->gap_char;
+	} else {
+	    $gap_line .= '.';
+	}
+>>>>>>> upstream/master
+    }
+    return 1;
+}
+
+<<<<<<< HEAD
+=======
+=head2 gap_col_matrix
+
+ Title    : gap_col_matrix()
+ Usage    : my $cols = $align->gap_col_matrix()
+ Function : Generates an array where each element in the array is a 
+            hash reference with a key of the sequence name and a
+            value of 1 if the sequence has a gap at that column
+ Returns  : Reference to an array
+ Args     : Optional: gap line character ($aln->gap_char or '-' by default)
+
+=cut
+
+sub gap_col_matrix {
+    my ( $self, $gapchar ) = @_;
+    $gapchar = $gapchar || $self->gap_char;
+    my %gap_hsh;    # column gaps vector
+    my @cols;
+    foreach my $seq ( $self->each_seq ) {
+        my $i   = 0;
+        my $str = $seq->seq;
+        my $len = $seq->length;
+        my $ch;
+        my $id = $seq->display_id;
+        while ( $i < $len ) {
+            $ch = substr( $str, $i, 1 );
+            $cols[ $i++ ]->{$id} = ( $ch =~ m/[$gapchar]/ );
+        }
+    }
+    return \@cols;
+}
+>>>>>>> upstream/master
+
+=head2 match
+
+ Title     : match()
+ Usage     : $aln->match()
+ Function  : Goes through all columns and changes residues that are
+             identical to residue in first sequence to match '.'
+             character. Sets match_char.
+
+             USE WITH CARE: Most MSA formats do not support match
+             characters in sequences, so this is mostly for output
+             only. NEXUS format (Bio::AlignIO::nexus) can handle
+             it.
+ Returns   : 1
+ Argument  : a match character, optional, defaults to '.'
+             If the character is defined, it will reset $aln->match_char 
+
+=cut
+
+sub match {
+    my ($self, $match) = @_;
+
+   if(defined $match) {
+		$self->match_char($match);
+	}
+	else {
+		$match=$self->match_char();
+	}
+    
+    my ($matching_char) = $match;
+    $matching_char = "\\$match" if $match =~ /[\^.$|()\[\]]/ ;  #';
+    $self->map_chars($matching_char, '-');
+
+    my @seqs = $self->next_Seq();
+    return 1 unless scalar @seqs > 1;
+
+    my $refseq = shift @seqs ;
+    my @refseq = split //, $refseq->seq;
+    my $gapchar = $self->gap_char;
+
+    foreach my $seq ( @seqs ) {
+	my @varseq = split //, $seq->seq();
+	for ( my $i=0; $i < scalar @varseq; $i++) {
+	    $varseq[$i] = $match if defined $refseq[$i] &&
+		( $refseq[$i] =~ /[A-Za-z\*]/ ||
+		  $refseq[$i] =~ /$gapchar/ )
+		      && $refseq[$i] eq $varseq[$i];
+	}
+	$seq->seq(join '', @varseq);
+    }
+    
+    return 1;
+}
+
+
+=head2 unmatch
+
+ Title     : unmatch()
+ Usage     : $ali->unmatch()
+ Function  : Undoes the effect of method match. Unsets match_char.
+ Returns   : 1
+ Argument  : a match character, optional, defaults to '.'
+
+See L<match> and L<match_char>
+
+=cut
+
+sub unmatch {
+    my ($self, $match) = @_;
+
+   if(defined $match) {
+		$self->match_char($match);
+	}
+	else {
+		$match=$self->match_char();
+	}
+
+    my @seqs = $self->next_Seq();
+    return 1 unless scalar @seqs > 1;
+
+    my $refseq = shift @seqs ;
+    my @refseq = split //, $refseq->seq;
+    my $gapchar = $self->gap_char;
+    foreach my $seq ( @seqs ) {
+	my @varseq = split //, $seq->seq();
+	for ( my $i=0; $i < scalar @varseq; $i++) {
+	    $varseq[$i] = $refseq[$i] if defined $refseq[$i] &&
+		( $refseq[$i] =~ /[A-Za-z\*]/ ||
+		  $refseq[$i] =~ /$gapchar/ ) &&
+		      $varseq[$i] eq $match;
+	}
+	$seq->seq(join '', @varseq);
+    }
+    $self->match_char('');
+    return 1;
+}
+
+
+=head1 Consensus sequences
+
+Methods to calculate consensus sequences for the MSA
+
+=head2 consensus_string
+
+ Title     : consensus_string
+ Usage     : $str = $ali->consensus_string($threshold_percent)
+ Function  : Makes a strict consensus
+ Returns   : Consensus string
+ Argument  : Optional treshold ranging from 0 to 100.
+             The consensus residue has to appear at least threshold %
+             of the sequences at a given location, otherwise a '?'
+             character will be placed at that location.
+             (Default value = 0%)
+
+=cut
+
+sub consensus_string {
+    my $self = shift;
+    my $threshold = shift;
+
+    my $out = "";
+    my $len = $self->length - 1;
+
+    foreach ( 0 .. $len ) {
+	$out .= $self->_consensus_aa($_,$threshold);
+    }
+    return $out;
+}
+
+sub _consensus_aa {
+    my $self = shift;
+    my $point = shift;
+    my $threshold_percent = shift || -1 ;
+    my ($seq,%hash,$count,$letter,$key);
+    my $gapchar = $self->gap_char;
+    foreach $seq ( $self->next_Seq() ) {
+	$letter = substr($seq->seq,$point,1);
+	$self->throw("--$point-----------") if $letter eq '';
+	($letter eq $gapchar || $letter =~ /\./) && next;
+	# print "Looking at $letter\n";
+	$hash{$letter}++;
+    }
+    my $number_of_sequences = $self->num_sequences();
+    my $threshold = $number_of_sequences * $threshold_percent / 100. ;
+    $count = -1;
+    $letter = '?';
+
+    foreach $key ( sort keys %hash ) {
+	# print "Now at $key $hash{$key}\n";
+	if( $hash{$key} > $count && $hash{$key} >= $threshold) {
+	    $letter = $key;
+	    $count = $hash{$key};
+	}
+    }
+    return $letter;
+}
+
+=head2 consensus_conservation
+
+ Title     : consensus_conservation
+ Usage     : @conservation = $ali->consensus_conservation();
+ Function  : Conservation (as a percent) of each position of alignment
+ Returns   : Array of percentages [0-100]. Gap columns are 0% conserved.
+ Argument  : 
+ 
+=cut
+
+sub consensus_conservation {
+    my $self = shift;
+    my @cons;
+    my $num_sequences = $self->num_sequences;
+    foreach my $point (0..$self->length-1) {
+        my %hash = $self->_consensus_counts($point);
+        # max frequency of a non-gap letter
+        my $max = (sort {$b<=>$a} values %hash )[0];
+        push @cons, 100 * $max / $num_sequences;
+    }
+    return @cons; 
+}
+
+# Frequency of each letter in one column
+sub _consensus_counts {
+    my $self = shift;
+    my $point = shift;
+    my %hash;
+    my $gapchar = $self->gap_char;
+    foreach my $seq ( $self->next_Seq() ) {
+        my $letter = substr($seq->seq,$point,1);
+        $self->throw("--$point-----------") if $letter eq '';
+        ($letter eq $gapchar || $letter =~ /\./) && next;
+        $hash{$letter}++;
+    }
+    return %hash;
+}
+
+=head2 consensus_iupac
+
+ Title     : consensus_iupac
+ Usage     : $str = $ali->consensus_iupac()
+ Function  : Makes a consensus using IUPAC ambiguity codes from DNA
+             and RNA. The output is in upper case except when gaps in
+             a column force output to be in lower case.
+
+             Note that if your alignment sequences contain a lot of
+             IUPAC ambiquity codes you often have to manually set
+             alphabet.  Bio::PrimarySeq::_guess_type thinks they
+             indicate a protein sequence.
+ Returns   : consensus string
+ Argument  : none
+ Throws    : on protein sequences
+
+=cut
+
+sub consensus_iupac {
+    my $self = shift;
+    my $out = "";
+    my $len = $self->length-1;
+
+    # only DNA and RNA sequences are valid
+    foreach my $seq ( $self->next_Seq() ) {
+	$self->throw("Seq [". $seq->get_nse. "] is a protein")
+	    if $seq->alphabet eq 'protein';
+    }
+    # loop over the alignment columns
+    foreach my $count ( 0 .. $len ) {
+	$out .= $self->_consensus_iupac($count);
+    }
+    return $out;
+}
+
+sub _consensus_iupac {
+    my ($self, $column) = @_;
+    my ($string, $char, $rna);
+
+    #determine all residues in a column
+    foreach my $seq ( $self->next_Seq() ) {
+	$string .= substr($seq->seq, $column, 1);
+    }
+    $string = uc $string;
+
+    # quick exit if there's an N in the string
+    if ($string =~ /N/) {
+	$string =~ /\W/ ? return 'n' : return 'N';
+    }
+    # ... or if there are only gap characters
+    return '-' if $string =~ /^\W+$/;
+
+    # treat RNA as DNA in regexps
+    if ($string =~ /U/) {
+	$string =~ s/U/T/;
+	$rna = 1;
+    }
+
+    # the following s///'s only need to be done to the _first_ ambiguity code
+    # as we only need to see the _range_ of characters in $string
+
+    if ($string =~ /[VDHB]/) {
+	$string =~ s/V/AGC/;
+	$string =~ s/D/AGT/;
+	$string =~ s/H/ACT/;
+	$string =~ s/B/CTG/;
+    }
+
+    if ($string =~ /[SKYRWM]/) {
+	$string =~ s/S/GC/;
+	$string =~ s/K/GT/;
+	$string =~ s/Y/CT/;
+	$string =~ s/R/AG/;
+	$string =~ s/W/AT/;
+	$string =~ s/M/AC/;
+    }
+
+    # and now the guts of the thing
+
+    if ($string =~ /A/) {
+        $char = 'A';                     # A                      A
+        if ($string =~ /G/) {
+            $char = 'R';                 # A and G (purines)      R
+            if ($string =~ /C/) {
+                $char = 'V';             # A and G and C          V
+                if ($string =~ /T/) {
+                    $char = 'N';         # A and G and C and T    N
+                }
+            } elsif ($string =~ /T/) {
+                $char = 'D';             # A and G and T          D
+            }
+        } elsif ($string =~ /C/) {
+            $char = 'M';                 # A and C                M
+            if ($string =~ /T/) {
+                $char = 'H';             # A and C and T          H
+            }
+        } elsif ($string =~ /T/) {
+            $char = 'W';                 # A and T                W
+        }
+    } elsif ($string =~ /C/) {
+        $char = 'C';                     # C                      C
+        if ($string =~ /T/) {
+            $char = 'Y';                 # C and T (pyrimidines)  Y
+            if ($string =~ /G/) {
+                $char = 'B';             # C and T and G          B
+            }
+        } elsif ($string =~ /G/) {
+            $char = 'S';                 # C and G                S
+        }
+    } elsif ($string =~ /G/) {
+        $char = 'G';                     # G                      G
+        if ($string =~ /C/) {
+            $char = 'S';                 # G and C                S
+        } elsif ($string =~ /T/) {
+            $char = 'K';                 # G and T                K
+        }
+    } elsif ($string =~ /T/) {
+        $char = 'T';                     # T                      T
+    }
+
+    $char = 'U' if $rna and $char eq 'T';
+    $char = lc $char if $string =~ /\W/;
+
+    return $char;
+}
+
+
+=head2 consensus_meta
+
+ Title     : consensus_meta
+ Usage     : $seqmeta = $ali->consensus_meta()
+ Function  : Returns a Bio::Seq::Meta object containing the consensus
+             strings derived from meta data analysis.
+ Returns   : Bio::Seq::Meta 
+ Argument  : Bio::Seq::Meta 
+ Throws    : non-MetaI object
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
+
+   my $seq = Bio::Seq->new();
+
+<<<<<<< HEAD
+#   my $rootfeature = Bio::SeqFeature::Generic->new(
+#                -source_tag => 'location',
+#                -start      => $self->get_seq_by_pos($arg{-pos})->start,
+#                -end        => $self->get_seq_by_pos($arg{-pos})->end,
+#                                                  );
+#   $seq->add_SeqFeature($rootfeature);
+
+   while(my $b = shift @bs){
+	 my $e = shift @es;
+	 $seq->add_SeqFeature(
+       Bio::SeqFeature::Generic->new(
+         -start => $b - 1 + $self->get_Seq_by_pos($arg{-pos})->start,
+         -end   => $e - 1 + $self->get_Seq_by_pos($arg{-pos})->start,
+         -source_tag => $self->source || 'MSA',
+       )
+     );
+   }
+
+   return $seq;
+}
+
+
+=head1 Change sequences within the MSA
+
+These methods affect characters in all sequences without changing the
+alignment.
+
+=======
+sub consensus_meta {
+    my ($self, $meta) = @_;
+    if ($meta && (!ref $meta || !$meta->isa('Bio::Seq::MetaI'))) {
+        $self->throw('Not a Bio::Seq::MetaI object');
+    }
+    return $self->{'_aln_meta'} = $meta if $meta;
+    return $self->{'_aln_meta'} 
+}
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
+
+
+=head2 bracket_string
+
+ Title     : bracket_string
+ Usage     : my @params = (-refseq     => 'testseq',
+                           -allele1    => 'allele1',
+                           -allele2    => 'allele2',
+                           -delimiters => '{}',
+                           -separator  => '/');
+             $str = $aln->bracket_string(@params)
+
+ Function :  When supplied with a list of parameters (see below), returns a
+             string in BIC format. This is used for allelic comparisons.
+             Briefly, if either allele contains a base change when compared to
+             the refseq, the base or gap for each allele is represented in
+             brackets in the order present in the 'alleles' parameter.
+
+<<<<<<< HEAD
+    foreach $seq ( $self->next_Seq() ) {
+	$temp = $seq->seq();
+	$temp =~ s/$from/$to/g;
+	$seq->seq($temp);
+    }
+    return 1;
+}
+=======
+             For the following data:
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
+
+             >testseq
+             GGATCCATTGCTACT
+             >allele1
+             GGATCCATTCCTACT
+             >allele2
+             GGAT--ATTCCTCCT
+
+             the returned string with parameters 'refseq => testseq' and
+             'alleles => [qw(allele1 allele2)]' would be:
+
+<<<<<<< HEAD
+ Title     : uppercase()
+ Usage     : $ali->uppercase()
+ Function  : Sets all the sequences to uppercase
+ Returns   : 1
+ Argument  : None
+
+=cut
+
+sub uppercase {
     my $self = shift;
     my $seq;
     my $temp;
 
     foreach $seq ( $self->next_Seq() ) {
       $temp = $seq->seq();
-      $temp =~ tr/[A-Za-z]/[a-zA-Z]/;
+      $temp =~ tr/[a-z]/[A-Z]/;
+
+      $seq->seq($temp);
+=======
+             GGAT[C/-][C/-]ATT[C/C]CT[A/C]CT
+ Returns   : BIC-formatted string
+ Argument  : Required args
+                refseq    : string (ID) of the reference sequence used
+                            as basis for comparison
+                allele1   : string (ID) of the first allele
+                allele2   : string (ID) of the second allele
+             Optional args
+                delimiters: two symbol string of left and right delimiters.
+                            Only the first two symbols are used
+                            default = '[]'
+                separator : string used as a separator.  Only the first
+                            symbol is used
+                            default = '/'
+ Throws    : On no refseq/alleles, or invalid refseq/alleles.
+
+=cut
+
+sub bracket_string {
+    my ($self, @args) = @_;
+    my ($ref, $a1, $a2, $delim, $sep) =
+        $self->_rearrange([qw(refseq allele1 allele2 delimiters separator)], @args);
+    $self->throw('Missing refseq/allele1/allele2') if (!$a1 || !$a2 || !$ref);
+    my ($ld, $rd);
+    ($ld, $rd) = split('', $delim, 2) if $delim;
+    $ld ||= '[';
+    $rd ||= ']';
+    $sep ||= '/';
+    my ($refseq, $allele1, $allele2) =
+        map {( $self->next_Seq_with_id($_) )} ($ref, $a1, $a2);
+    if (!$refseq || !$allele1 || !$allele2) {
+        $self->throw("One of your refseq/allele IDs is invalid!");
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
+    }
+    my $len = $self->length-1;
+    my $bic = '';
+    # loop over the alignment columns
+    for my $column ( 0 .. $len ) {
+        my $string;
+        my ($compres, $res1, $res2) =
+            map{substr($_->seq, $column, 1)} ($refseq, $allele1, $allele2);
+        # are any of the allele symbols different from the refseq?
+        $string = ($compres eq $res1 && $compres eq $res2) ? $compres :
+                $ld.$res1.$sep.$res2.$rd;
+        $bic .= $string;
+    }
+    return $bic;
+}
+
+<<<<<<< HEAD
+=head2 lowercase
+
+ Title     : lowercase()
+ Usage     : $ali->lowercase()
+ Function  : Sets all the sequences to lowercase
+ Returns   : 1
+ Argument  : None
+=======
+
+=head2 cigar_line
+
+ Title    : cigar_line()
+ Usage    : %cigars = $align->cigar_line()
+ Function : Generates a "cigar" (Compact Idiosyncratic Gapped Alignment
+            Report) line for each sequence in the alignment. Examples are
+            "1,60" or "5,10:12,58", where the numbers refer to conserved
+            positions within the alignment. The keys of the hash are the
+            NSEs (name/start/end) assigned to each sequence.
+ Args     : threshold (optional, defaults to 100)
+ Returns  : Hash of strings (cigar lines)
+
+=cut
+
+sub cigar_line {
+	my $self = shift;
+	my $thr=shift||100;
+	my %cigars;
+
+	my @consensus = split "",($self->consensus_string($thr));
+	my $len = $self->length;
+	my $gapchar = $self->gap_char;
+
+	# create a precursor, something like (1,4,5,6,7,33,45),
+	# where each number corresponds to a conserved position
+	foreach my $seq ( $self->next_Seq ) {
+		my @seq = split "", uc ($seq->seq);
+		my $pos = 1;
+		for (my $x = 0 ; $x < $len ; $x++ ) {
+			if ($seq[$x] eq $consensus[$x]) {
+				push @{$cigars{$seq->get_nse}},$pos;
+				$pos++;
+			} elsif ($seq[$x] ne $gapchar) {
+				$pos++;
+			}
+		}
+	}
+	# duplicate numbers - (1,4,5,6,7,33,45) becomes (1,1,4,5,6,7,33,33,45,45)
+	for my $name (keys %cigars) {
+		splice @{$cigars{$name}}, 1, 0, ${$cigars{$name}}[0] if
+		  ( ${$cigars{$name}}[0] + 1 < ${$cigars{$name}}[1] );
+      push @{$cigars{$name}}, ${$cigars{$name}}[$#{$cigars{$name}}] if
+           ( ${$cigars{$name}}[($#{$cigars{$name}} - 1)] + 1 <
+		          ${$cigars{$name}}[$#{$cigars{$name}}] );
+		for ( my $x = 1 ; $x < $#{$cigars{$name}} - 1 ; $x++) {
+			if (${$cigars{$name}}[$x - 1] + 1 < ${$cigars{$name}}[$x]  &&
+		       ${$cigars{$name}}[$x + 1]  > ${$cigars{$name}}[$x] + 1) {
+	         splice @{$cigars{$name}}, $x, 0, ${$cigars{$name}}[$x];
+			}
+      }
+	}
+  # collapse series - (1,1,4,5,6,7,33,33,45,45) becomes (1,1,4,7,33,33,45,45)
+  for my $name (keys %cigars) {
+	  my @remove;
+	  for ( my $x = 0 ; $x < $#{$cigars{$name}} ; $x++) {
+		   if ( ${$cigars{$name}}[$x] == ${$cigars{$name}}[($x - 1)] + 1 &&
+			     ${$cigars{$name}}[$x] == ${$cigars{$name}}[($x + 1)] - 1 ) {
+		      unshift @remove,$x;
+	      }
+	   }
+      for my $pos (@remove) {
+		  	splice @{$cigars{$name}}, $pos, 1;
+	   }
+   }
+   # join and punctuate
+   for my $name (keys %cigars) {
+ 	  my ($start,$end,$str) = "";
+ 	  while ( ($start,$end) = splice @{$cigars{$name}}, 0, 2 ) {
+ 		  $str .= ($start . "," . $end . ":");
+ 	  }
+ 	  $str =~ s/:$//;
+      $cigars{$name} = $str;
+   }
+   %cigars;
+}
+
+
+=head2 match_line
+
+ Title    : match_line()
+ Usage    : $line = $aln->match_line()
+ Function : Generates a match line - much like consensus string
+            except that a line indicating the '*' for a match.
+ Args     : (optional) Match line characters ('*' by default)
+            (optional) Strong match char (':' by default)
+            (optional) Weak match char ('.' by default)
+ Returns  : String
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
+
+=cut
+
+sub lowercase {
+    my $self = shift;
+    my $seq;
+    my $temp;
+
+<<<<<<< HEAD
+    foreach $seq ( $self->next_Seq() ) {
+      $temp = $seq->seq();
+      $temp =~ tr/[A-Z]/[a-z]/;
+=======
+	my @seqchars;
+	my $alphabet;
+	foreach my $seq ( $self->next_Seq ) {
+		push @seqchars, [ split(//, uc ($seq->seq)) ];
+		$alphabet = $seq->alphabet unless defined $alphabet;
+	}
+	my $refseq = shift @seqchars;
+	# let's just march down the columns
+	my $matchline;
+ POS:
+	foreach my $pos ( 0..$self->length ) {
+		my $refchar = $refseq->[$pos];
+		my $char = $matchchars{'mismatch'};
+		unless( defined $refchar ) {
+			last if $pos == $self->length; # short circuit on last residue
+			# this in place to handle jason's soon-to-be-committed
+			# intron mapping code
+			goto bottom;
+		}
+		my %col = ($refchar => 1);
+		my $dash = ($refchar eq '-' || $refchar eq '.' || $refchar eq ' ');
+		foreach my $seq ( @seqchars ) {
+			next if $pos >= scalar @$seq;
+			$dash = 1 if( $seq->[$pos] eq '-' || $seq->[$pos] eq '.' ||
+							  $seq->[$pos] eq ' ' );
+			$col{$seq->[$pos]}++ if defined $seq->[$pos];
+		}
+		my @colresidues = sort keys %col;
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
 
       $seq->seq($temp);
     }
     return 1;
 }
 
+
+=head2 togglecase
+
+<<<<<<< HEAD
+ Title     : togglecase()
+ Usage     : $ali->togglecase()
+ Function  : Sets all the sequences to opposite case
+ Returns   : 1
+ Argument  : None
+
+=cut
+
+sub togglecase {
+    my $self = shift;
+    my $seq;
+    my $temp;
+=======
+ Title    : gap_line()
+ Usage    : $line = $aln->gap_line()
+ Function : Generates a gap line - much like consensus string
+            except that a line where '-' represents gap
+ Args     : (optional) gap line characters ('-' by default)
+ Returns  : string
+
+=cut
+
+sub gap_line {
+    my ($self,$gapchar) = @_;
+    $gapchar = $gapchar || $self->gap_char;
+    my %gap_hsh; # column gaps vector
+    foreach my $seq ( $self->next_Seq ) {
+		my $i = 0;
+    	map {$gap_hsh{$_->[0]} = undef} grep {$_->[1] eq $gapchar}
+		  map {[$i++, $_]} split(//, uc ($seq->seq));
+    }
+    my $gap_line;
+    foreach my $pos ( 0..$self->length-1 ) {
+	  $gap_line .= (exists $gap_hsh{$pos}) ? $gapchar:'.';
+    }
+    return $gap_line;
+}
+
+=head2 all_gap_line
+
+ Title    : all_gap_line()
+ Usage    : $line = $aln->all_gap_line()
+ Function : Generates a gap line - much like consensus string
+            except that a line where '-' represents all-gap column
+ Args     : (optional) gap line characters ('-' by default)
+ Returns  : string
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
+
+    foreach $seq ( $self->next_Seq() ) {
+      $temp = $seq->seq();
+      $temp =~ tr/[A-Za-z]/[a-zA-Z]/;
+
+<<<<<<< HEAD
+      $seq->seq($temp);
+=======
+sub all_gap_line {
+    my ($self,$gapchar) = @_;
+    $gapchar = $gapchar || $self->gap_char;
+    my %gap_hsh;		# column gaps counter hash
+    my @seqs = $self->next_Seq;
+    foreach my $seq ( @seqs ) {
+	my $i = 0;
+    	map {$gap_hsh{$_->[0]}++} grep {$_->[1] eq $gapchar}
+	map {[$i++, $_]} split(//, uc ($seq->seq));
+    }
+    my $gap_line;
+    foreach my $pos ( 0..$self->length-1 ) {
+	if (exists $gap_hsh{$pos} && $gap_hsh{$pos} == scalar @seqs) {
+            # gaps column
+	    $gap_line .= $gapchar;
+	} else {
+	    $gap_line .= '.';
+	}
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
+    }
+    return 1;
+}
+
+<<<<<<< HEAD
 
 =head2 match
 
@@ -2468,6 +3758,40 @@ sub gap_col_matrix {
 }
 
 
+=======
+=head2 gap_col_matrix
+
+ Title    : gap_col_matrix()
+ Usage    : my $cols = $aln->gap_col_matrix()
+ Function : Generates an array of hashes where
+            each entry in the array is a hash reference
+            with keys of all the sequence names and
+            and value of 1 or 0 if the sequence has a gap at that column
+ Args     : (optional) gap line characters ($aln->gap_char or '-' by default)
+
+=cut
+
+sub gap_col_matrix {
+    my ($self,$gapchar) = @_;
+    $gapchar = $gapchar || $self->gap_char;
+    my %gap_hsh; # column gaps vector
+    my @cols;
+    foreach my $seq ( $self->next_Seq ) {
+	my $i = 0;
+	my $str = $seq->seq;
+	my $len = $seq->length;
+	my $ch;
+	my $id = $seq->display_id;
+	while( $i < $len ) {
+	    $ch = substr($str, $i, 1);
+	    $cols[$i++]->{$id} = ($ch eq $gapchar);
+	}
+    }
+    return \@cols;
+}
+
+
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
 =head1 MSA attributes
 
 Methods for setting and reading the MSA attributes.
@@ -3070,6 +4394,7 @@ sub pairwise_percentage_identity {
 	my ($self,$seqid)=@_;
 
 	my %alphabet = map {$_ => undef} qw (A C G T U B D E F H I J K L M N O P Q R S V W X Y Z);
+<<<<<<< HEAD
 
    my ($refseq, @seqs,@ids,@pairwise_iden);
 
@@ -3082,6 +4407,20 @@ sub pairwise_percentage_identity {
 		push @ids, $seq->display_id;
 	}
 
+=======
+
+   my ($refseq, @seqs,@ids,@pairwise_iden);
+
+   if (! $self->is_flush()) {
+       $self->throw("All sequences in the alignment must be the same length");
+   }
+
+	foreach my $seq ( $self->next_Seq() ) {
+		push @seqs, $seq;
+		push @ids, $seq->display_id;
+	}
+
+>>>>>>> 09545cc6f7fda052ccbd5bba60ce5add6ff1b642
    # load the each hash with correct keys for existence checks
    if(defined($seqid)) {
    	my $is_num=0;
@@ -3407,29 +4746,42 @@ sub get_SeqFeatures {
     return @{$self->{'_as_feat'}};
 }
 
+
 =head2 add_SeqFeature
 
  Usage   : $aln->add_SeqFeature($subfeat);
- Function: adds a SeqFeature into the SeqFeature array.
+ Function: Adds a SeqFeature into the SeqFeature array. The 'EXPAND' qualifier
+           (see L<Bio::FeatureHolderI>) is supported, but has no effect.
  Example :
  Returns : true on success
  Args    : a Bio::SeqFeatureI object
- Note    : This implementation is not compliant
-           with Bio::FeatureHolderI
 
 =cut
 
 sub add_SeqFeature {
-   my ($self,@feat) = @_;
+   my ($self, @feat) = @_;
 
    $self->{'_as_feat'} = [] unless $self->{'_as_feat'};
 
-   foreach my $feat ( @feat ) {
+   if (scalar @feat > 1) {
+      $self->deprecated(
+         -message => 'Providing an array of features to Bio::SimpleAlign add_SeqFeature()'.
+                     ' is deprecated and will be removed in a future version. '.
+                     'Add a single feature at a time instead.',
+         -warn_version    => 1.007,
+         -throw_version   => 1.009,
+      );
+   }
+
+   for my $feat ( @feat ) {
+
+       next if $feat eq 'EXPAND'; # Need to support it for FeatureHolderI compliance
+
        if( !$feat->isa("Bio::SeqFeatureI") ) {
-           $self->throw("$feat is not a SeqFeatureI and that's what we expect...");
+           $self->throw("Expected a Bio::SeqFeatureI object, but got a $feat.");
        }
 
-       push(@{$self->{'_as_feat'}},$feat);
+       push @{$self->{'_as_feat'}}, $feat;
    }
    return 1;
 }
